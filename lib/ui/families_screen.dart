@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/in_memory_data.dart';
 import '../models/family.dart';
+import 'family/family_details_screen.dart';
+import '../utils/logger.dart';
 
 class FamiliesScreen extends StatefulWidget {
   const FamiliesScreen({super.key});
@@ -26,6 +28,7 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
   }
 
   void _onData() {
+    Log.i('FamiliesScreen._onData()', tag: 'NAV');
     if (mounted) setState(() {});
   }
 
@@ -55,6 +58,7 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
     );
 
     if (name != null && name.isNotEmpty) {
+      Log.i('FamiliesScreen._addFamily(name=$name)', tag: 'NAV');
       final f = Family(name: name);
       data.families.add(f);
   data.persistAll();
@@ -65,7 +69,8 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
   @override
   Widget build(BuildContext context) {
     final families = data.families;
-    return Scaffold(
+  Log.i('FamiliesScreen.build()', tag: 'NAV');
+  return Scaffold(
       body: families.isEmpty
           ? const Center(child: Text('No families yet'))
           : ListView.separated(
@@ -77,6 +82,12 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
                   title: Text(f.name),
                   subtitle: Text('${f.numberOfMembers} members • ${f.numberOfOrders} orders'),
                   leading: const Icon(Icons.group_outlined),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FamilyDetailsScreen(familyId: f.id),
+                    ),
+                  ),
                 );
               },
             ),

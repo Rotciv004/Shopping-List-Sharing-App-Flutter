@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'data/in_memory_data.dart';
+import 'utils/logger.dart';
 import 'ui/families_screen.dart';
+import 'ui/auth/login_screen.dart';
+import 'ui/home/home_screen.dart';
+import 'ui/home/notifications_screen.dart';
+import 'ui/home/profile_screen.dart';
 
 class RootScaffold extends StatefulWidget {
   const RootScaffold({super.key});
@@ -23,28 +28,41 @@ class _RootScaffoldState extends State<RootScaffold> {
   @override
   void initState() {
     super.initState();
-    InMemoryData.instance.initialize().then((_) {
-      if (mounted) setState(() => _initialized = true);
-    });
+    Log.i('RootScaffold.initState()', tag: 'NAV');
+    InMemoryData.instance.initialize();
+    // Subscribe to data changes so UI reacts to login/signout
+    InMemoryData.instance.addListener(_onDataChanged);
+    // Mark initialized immediately; data will load in background
+    _initialized = true;
+  }
+
+  void _onDataChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    Log.i('RootScaffold.build(index=$_index)', tag: 'NAV');
+    if (!_initialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final loggedIn = InMemoryData.instance.currentUser != null;
+    if (!loggedIn) {
+      return const LoginScreen();
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(_tabs[_index].title),
       ),
-      body: _initialized
-          ? IndexedStack(
-              index: _index,
-              children: const [
-                Center(child: Text('Home')),
-                FamiliesScreen(),
-                Center(child: Text('Notifications')),
-                Center(child: Text('Profile')),
-              ],
-            )
-          : const Center(child: CircularProgressIndicator()),
+      body: IndexedStack(
+        index: _index,
+        children: const [
+          HomeScreen(),
+          FamiliesScreen(),
+          NotificationsScreen(),
+          ProfileScreen(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
