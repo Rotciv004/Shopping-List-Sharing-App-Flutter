@@ -108,6 +108,7 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
   }
 
   Future<void> _leaveFamily() async {
+    Log.i('FamilyDetailsScreen._leaveFamily() called', tag: 'NAV');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -123,11 +124,17 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
         ],
       ),
     );
+    Log.i('Leave family confirmed: $confirmed', tag: 'NAV');
     if (confirmed != true) return;
     final fam = _family;
     final userId = data.currentUser?.id;
-    if (fam == null || fam.id == 'Unknown' || userId == null) return;
+    Log.i('Leaving family: ${fam?.name} (${fam?.id}) for user $userId', tag: 'NAV');
+    if (fam == null || fam.id == 'Unknown' || userId == null) {
+      Log.i('Cannot leave family - invalid data', tag: 'NAV');
+      return;
+    }
     data.removeMemberFromFamily(fam.id, userId);
+    Log.i('Successfully left family, navigating back', tag: 'NAV');
     Navigator.pop(context); // Go back to families list
   }
 

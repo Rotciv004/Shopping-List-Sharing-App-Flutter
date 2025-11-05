@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../data/in_memory_data.dart';
-import '../models/family.dart';
 import 'family/family_details_screen.dart';
 import '../utils/logger.dart';
 
@@ -59,10 +58,7 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
 
     if (name != null && name.isNotEmpty) {
       Log.i('FamiliesScreen._addFamily(name=$name)', tag: 'NAV');
-      final f = Family(name: name);
-      data.families.add(f);
-  data.persistAll();
-  data.notify();
+      data.addFamily(name);
     }
   }
 

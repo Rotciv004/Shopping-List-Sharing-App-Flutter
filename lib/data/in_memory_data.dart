@@ -43,6 +43,9 @@ class InMemoryData extends ChangeNotifier {
       ..clear()
       ..addAll(loaded.notifications);
 
+    // Fix all family counts after loading data
+    _fixAllFamilyCounts();
+
     // Seed demo data on first run to help visualize the flow
     if (users.isEmpty && families.isEmpty && orders.isEmpty) {
       Log.i('Seeding initial demo data', tag: 'DATA');
@@ -64,6 +67,7 @@ class InMemoryData extends ChangeNotifier {
     );
     if (u.email.isEmpty) return false;
     currentUser = u;
+    _fixUserFamilies();
     notifyListeners();
     return true;
   }
@@ -396,5 +400,61 @@ class InMemoryData extends ChangeNotifier {
     orders.add(order);
     fam.ordersList.add(order.id);
     fam.numberOfOrders = fam.ordersList.length;
+  }
+
+  void _fixAllFamilyCounts() {
+    Log.i('Fixing all family counts on startup', tag: 'DATA');
+    bool needsSave = false;
+    
+    for (final family in families) {
+      // Fix member counts to match actual list length
+      final correctMemberCount = family.membersList.length;
+      if (family.numberOfMembers != correctMemberCount) {
+        Log.i('Fixing member count for ${family.name}: ${family.numberOfMembers} -> $correctMemberCount', tag: 'DATA');
+        family.numberOfMembers = correctMemberCount;
+        needsSave = true;
+      }
+      
+      // Fix order counts to match actual list length  
+      final correctOrderCount = family.ordersList.length;
+      if (family.numberOfOrders != correctOrderCount) {
+        Log.i('Fixing order count for ${family.name}: ${family.numberOfOrders} -> $correctOrderCount', tag: 'DATA');
+        family.numberOfOrders = correctOrderCount;
+        needsSave = true;
+      }
+    }
+    
+    if (needsSave) {
+      Log.i('Saving corrected family data', tag: 'DATA');
+      LocalFileDatabase.saveFamilies(families);
+    }
+  }
+
+  void _fixUserFamilies() {
+    Log.i('Fixing families for current user', tag: 'DATA');
+    bool needsSave = false;
+    
+    for (final family in families) {
+      // Fix member counts to match actual list length
+      final correctCount = family.membersList.length;
+      if (family.numberOfMembers != correctCount) {
+        Log.i('Fixing member count for ${family.name}: ${family.numberOfMembers} -> $correctCount', tag: 'DATA');
+        family.numberOfMembers = correctCount;
+        needsSave = true;
+      }
+      
+      // Fix order counts to match actual list length
+      final correctOrderCount = family.ordersList.length;
+      if (family.numberOfOrders != correctOrderCount) {
+        Log.i('Fixing order count for ${family.name}: ${family.numberOfOrders} -> $correctOrderCount', tag: 'DATA');
+        family.numberOfOrders = correctOrderCount;
+        needsSave = true;
+      }
+    }
+    
+    if (needsSave) {
+      Log.i('Saving corrected family data', tag: 'DATA');
+      LocalFileDatabase.saveFamilies(families);
+    }
   }
 }
