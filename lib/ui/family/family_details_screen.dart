@@ -5,6 +5,7 @@ import '../../models/family.dart';
 import '../../models/order.dart';
 import '../../utils/logger.dart';
 import '../widgets/optimized_orders_list.dart';
+import '../order/create_order_screen.dart';
 
 class FamilyDetailsScreen extends StatefulWidget {
   final String familyId;
@@ -49,22 +50,22 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
 
   Future<void> _addOrder() async {
     Log.i('FamilyDetailsScreen._addOrder()', tag: 'NAV');
-    final result = await showDialog<_OrderFormResult>(
-      context: context,
-      builder: (_) => const _OrderDialog(),
-    );
     final fam = _family;
-    final userId = data.currentUser?.id ?? 'unknown';
-    if (result != null && fam != null && fam.id != 'Unknown') {
-      data.createOrder(
-        familyId: fam.id,
-        name: result.name,
-        description: result.description,
-        quantity: result.quantity,
-        priority: result.priority,
-        placingUserId: userId,
-        allocatedSum: result.allocatedSum,
-        deadline: result.deadline,
+    final userId = data.currentUser?.id;
+    if (fam == null || fam.id == 'Unknown' || userId == null) return;
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateOrderScreen(
+          familyId: fam.id,
+          placingUserId: userId,
+        ),
+      ),
+    );
+    if (created == true) {
+      // Data layer already added the single created order and notified listeners
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order created')),
       );
     }
   }
@@ -83,23 +84,83 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
 
   Future<void> _editOrder(Order order) async {
     Log.i('FamilyDetailsScreen._editOrder(${order.id})', tag: 'NAV');
-    final edited = await showDialog<_OrderFormResult>(
+    // For now retain previous edit logic using a simple dialog
+    final nameController = TextEditingController(text: order.name);
+    final descController = TextEditingController(text: order.description);
+    final qtyController = TextEditingController(text: order.quantity.toString());
+    final sumController = TextEditingController(text: order.allocatedSum.toString());
+    Priority priority = order.priority;
+    DateTime? deadline = order.fulfillmentDeadLineDate;
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => _OrderDialog(existing: order),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Edit order'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+                const SizedBox(height: 8),
+                TextField(controller: descController, decoration: const InputDecoration(labelText: 'Description')),
+                const SizedBox(height: 8),
+                TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<Priority>(
+                  value: priority,
+                  decoration: const InputDecoration(labelText: 'Priority'),
+                  items: Priority.values.map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
+                  onChanged: (v) => setState(() => priority = v ?? priority),
+                ),
+                const SizedBox(height: 8),
+                TextField(controller: sumController, decoration: const InputDecoration(labelText: 'Allocated sum'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: Text(deadline == null ? 'No deadline' : 'Deadline: ${deadline!.toLocal()}')),
+                  TextButton(
+                    onPressed: () async {
+                      final now = DateTime.now();
+                      final date = await showDatePicker(
+                        context: ctx,
+                        initialDate: deadline ?? now,
+                        firstDate: now,
+                        lastDate: DateTime(now.year + 10),
+                      );
+                      if (date == null) return;
+                      final time = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay.fromDateTime(deadline ?? now),
+                      );
+                      if (time == null) return;
+                      setState(() => deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+                    },
+                    child: const Text('Pick date & time'),
+                  )
+                ])
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          ],
+        ),
+      ),
     );
-    if (edited != null) {
+    if (confirmed == true) {
       final updated = Order(
         id: order.id,
-        name: edited.name,
-        description: edited.description,
-        quantity: edited.quantity,
-        priority: edited.priority,
+        name: nameController.text.trim(),
+        description: descController.text.trim(),
+        quantity: int.tryParse(qtyController.text.trim()) ?? order.quantity,
+        priority: priority,
         status: order.status,
         placingUserId: order.placingUserId,
         fulfillingUserId: order.fulfillingUserId,
-        allocatedSum: edited.allocatedSum,
+        allocatedSum: double.tryParse(sumController.text.trim()) ?? order.allocatedSum,
         datePlaced: order.datePlaced,
-        fulfillmentDeadLineDate: edited.deadline ?? order.fulfillmentDeadLineDate,
+        fulfillmentDeadLineDate: deadline ?? order.fulfillmentDeadLineDate,
       );
       data.updateOrder(updated);
     }
@@ -202,217 +263,4 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
   }
 }
 
-class _OrderFormResult {
-  final String name;
-  final String description;
-  final int quantity;
-  final Priority priority;
-  final double allocatedSum;
-  final DateTime? deadline;
-  const _OrderFormResult(this.name, this.description, this.quantity, this.priority, this.allocatedSum, this.deadline);
-}
-
-class _OrderDialog extends StatefulWidget {
-  final Order? existing;
-  const _OrderDialog({this.existing});
-
-  @override
-  State<_OrderDialog> createState() => _OrderDialogState();
-}
-
-class _OrderDialogState extends State<_OrderDialog> {
-  late final TextEditingController _name;
-  late final TextEditingController _desc;
-  late final TextEditingController _qty;
-  late final TextEditingController _sum;
-  late Priority _priority;
-  DateTime? _deadline;
-
-  @override
-  void initState() {
-    super.initState();
-    final e = widget.existing;
-    _name = TextEditingController(text: e?.name ?? '');
-    _desc = TextEditingController(text: e?.description ?? '');
-    _qty = TextEditingController(text: e?.quantity.toString() ?? '1');
-    _sum = TextEditingController(text: (e?.allocatedSum ?? 0).toString());
-    _priority = e?.priority ?? Priority.NEW;
-    _deadline = e?.fulfillmentDeadLineDate;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-  title: Text(widget.existing == null ? 'Create order' : 'Edit order'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name')),
-            const SizedBox(height: 8),
-            TextField(controller: _desc, decoration: const InputDecoration(labelText: 'Description')),
-            const SizedBox(height: 8),
-            TextField(controller: _qty, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Priority>(
-              initialValue: _priority,
-              items: Priority.values
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name)))
-                  .toList(),
-              onChanged: (v) => setState(() => _priority = v ?? Priority.NEW),
-              decoration: const InputDecoration(labelText: 'Priority'),
-            ),
-            const SizedBox(height: 8),
-            TextField(controller: _sum, decoration: const InputDecoration(labelText: 'Allocated sum'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(_deadline == null ? 'No deadline' : 'Deadline: ${_deadline!.toLocal()}'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final now = DateTime.now();
-                    final picked = await _pickDateTime(
-                      context: context,
-                      initial: _deadline ?? now,
-                      min: now,
-                    );
-                    if (picked != null) {
-                      setState(() => _deadline = picked);
-                    }
-                  },
-                  child: const Text('Pick date & time'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        ElevatedButton(
-          onPressed: () {
-            if (_name.text.trim().isEmpty) return;
-            final res = _OrderFormResult(
-              _name.text.trim(),
-              _desc.text.trim(),
-              int.tryParse(_qty.text.trim()) ?? 1,
-              _priority,
-              double.tryParse(_sum.text.trim()) ?? 0.0,
-              _deadline,
-            );
-            Navigator.pop(context, res);
-          },
-          child: Text(widget.existing == null ? 'Create' : 'Save'),
-        )
-      ],
-    );
-  }
-}
-
-Future<DateTime?> _pickDateTime({required BuildContext context, required DateTime initial, required DateTime min}) async {
-  int year = initial.year;
-  int month = initial.month;
-  int day = initial.day;
-  int hour = initial.hour;
-  int minute = initial.minute - (initial.minute % 1);
-
-  int daysInMonth(int y, int m) {
-    final lastDay = DateTime(y, m + 1, 0).day;
-    return lastDay;
-  }
-
-  DateTime clamp(DateTime dt) {
-    if (dt.isBefore(min)) return min;
-    return dt;
-  }
-
-  DateTime? result = await showDialog<DateTime>(
-    context: context,
-    builder: (ctx) {
-      return StatefulBuilder(builder: (ctx, setState) {
-        final maxYear = DateTime.now().year + 10;
-        final validDays = daysInMonth(year, month);
-        if (day > validDays) day = validDays;
-        final candidate = clamp(DateTime(year, month, day, hour, minute));
-        return AlertDialog(
-          title: const Text('Select date & time'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(children: [
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: year,
-                    items: [for (int y = min.year; y <= maxYear; y++) DropdownMenuItem(value: y, child: Text(y.toString()))],
-                    onChanged: (v) => setState(() => year = v ?? year),
-                    decoration: const InputDecoration(labelText: 'Year'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: month,
-                    items: [for (int m = 1; m <= 12; m++) DropdownMenuItem(value: m, child: Text(m.toString().padLeft(2, '0')))],
-                    onChanged: (v) => setState(() => month = v ?? month),
-                    decoration: const InputDecoration(labelText: 'Month'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: day,
-                    items: [for (int d = 1; d <= validDays; d++) DropdownMenuItem(value: d, child: Text(d.toString().padLeft(2, '0')))],
-                    onChanged: (v) => setState(() => day = v ?? day),
-                    decoration: const InputDecoration(labelText: 'Day'),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: hour,
-                    items: [for (int h = 0; h < 24; h++) DropdownMenuItem(value: h, child: Text(h.toString().padLeft(2, '0')))],
-                    onChanged: (v) => setState(() => hour = v ?? hour),
-                    decoration: const InputDecoration(labelText: 'Hour'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: minute,
-                    items: [for (int m = 0; m < 60; m++) DropdownMenuItem(value: m, child: Text(m.toString().padLeft(2, '0')))],
-                    onChanged: (v) => setState(() => minute = v ?? minute),
-                    decoration: const InputDecoration(labelText: 'Minute'),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Selected: ${candidate.toLocal()}'),
-              )
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                final dt = DateTime(year, month, day, hour, minute);
-                if (dt.isBefore(min)) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Date/time cannot be in the past')));
-                  return;
-                }
-                Navigator.pop(ctx, dt);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      });
-    },
-  );
-  return result;
-}
+// Note: Order creation now uses a dedicated screen with a validated form.
