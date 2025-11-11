@@ -6,6 +6,7 @@ import '../../models/order.dart';
 import '../../utils/logger.dart';
 import '../widgets/optimized_orders_list.dart';
 import '../order/create_order_screen.dart';
+import '../order/edit_order_screen.dart';
 
 class FamilyDetailsScreen extends StatefulWidget {
   final String familyId;
@@ -84,85 +85,13 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
 
   Future<void> _editOrder(Order order) async {
     Log.i('FamilyDetailsScreen._editOrder(${order.id})', tag: 'NAV');
-    // For now retain previous edit logic using a simple dialog
-    final nameController = TextEditingController(text: order.name);
-    final descController = TextEditingController(text: order.description);
-    final qtyController = TextEditingController(text: order.quantity.toString());
-    final sumController = TextEditingController(text: order.allocatedSum.toString());
-    Priority priority = order.priority;
-    DateTime? deadline = order.fulfillmentDeadLineDate;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Edit order'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
-                const SizedBox(height: 8),
-                TextField(controller: descController, decoration: const InputDecoration(labelText: 'Description')),
-                const SizedBox(height: 8),
-                TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<Priority>(
-                  value: priority,
-                  decoration: const InputDecoration(labelText: 'Priority'),
-                  items: Priority.values.map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
-                  onChanged: (v) => setState(() => priority = v ?? priority),
-                ),
-                const SizedBox(height: 8),
-                TextField(controller: sumController, decoration: const InputDecoration(labelText: 'Allocated sum'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(child: Text(deadline == null ? 'No deadline' : 'Deadline: ${deadline!.toLocal()}')),
-                  TextButton(
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final date = await showDatePicker(
-                        context: ctx,
-                        initialDate: deadline ?? now,
-                        firstDate: now,
-                        lastDate: DateTime(now.year + 10),
-                      );
-                      if (date == null) return;
-                      final time = await showTimePicker(
-                        context: ctx,
-                        initialTime: TimeOfDay.fromDateTime(deadline ?? now),
-                      );
-                      if (time == null) return;
-                      setState(() => deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute));
-                    },
-                    child: const Text('Pick date & time'),
-                  )
-                ])
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-          ],
-        ),
-      ),
+    final updated = await Navigator.push<Order>(
+      context,
+      MaterialPageRoute(builder: (_) => EditOrderScreen(order: order)),
     );
-    if (confirmed == true) {
-      final updated = Order(
-        id: order.id,
-        name: nameController.text.trim(),
-        description: descController.text.trim(),
-        quantity: int.tryParse(qtyController.text.trim()) ?? order.quantity,
-        priority: priority,
-        status: order.status,
-        placingUserId: order.placingUserId,
-        fulfillingUserId: order.fulfillingUserId,
-        allocatedSum: double.tryParse(sumController.text.trim()) ?? order.allocatedSum,
-        datePlaced: order.datePlaced,
-        fulfillmentDeadLineDate: deadline ?? order.fulfillmentDeadLineDate,
-      );
+    if (updated != null) {
       data.updateOrder(updated);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order updated')));
     }
   }
 
