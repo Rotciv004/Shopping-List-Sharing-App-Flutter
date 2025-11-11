@@ -75,12 +75,46 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
     Log.i('FamilyDetailsScreen._deleteOrder($orderId)', tag: 'NAV');
     final requester = data.currentUser?.id;
     if (requester == null) return;
-    final ok = data.deleteOrderByIdIfCreator(orderId, requester);
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only the creator can delete this order')),
-      );
-    }
+
+    // Identify the element to show contextual confirmation
+    final ord = data.orders.firstWhere(
+      (o) => o.id == orderId,
+      orElse: () => Order(name: '', description: '', quantity: 0, placingUserId: ''),
+    );
+
+    // Confirm deletion with user
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete order'),
+        content: Text(
+          ord.name.isEmpty
+              ? 'Are you sure you want to delete this order?'
+              : "Are you sure you want to delete '${ord.name}'?",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed != true) return;
+      // Proceed with id-only delete; data layer validates creator
+      final ok = data.deleteOrderByIdIfCreator(orderId, requester);
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Only the creator can delete this order')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order deleted')),
+        );
+      }
+    });
   }
 
   Future<void> _editOrder(Order order) async {

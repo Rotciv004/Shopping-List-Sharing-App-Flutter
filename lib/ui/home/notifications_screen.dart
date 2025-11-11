@@ -36,26 +36,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     Log.i('NotificationsScreen.build()', tag: 'NAV');
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        actions: [
-          IconButton(
-            tooltip: 'Clear all',
-            onPressed: () => data.clearAllNotifications(),
-            icon: const Icon(Icons.delete_sweep_outlined),
-          )
-        ],
-      ),
-      body: ListenableBuilder(
-        listenable: data,
-        builder: (context, _) {
-          return OptimizedNotificationsList(
-            notifications: data.notifications,
-            onDelete: data.deleteNotificationById,
-          );
-        },
-      ),
+    // The parent RootScaffold already provides the AppBar; only render the list here.
+    return ListenableBuilder(
+      listenable: data,
+      builder: (context, _) {
+        return OptimizedNotificationsList(
+          notifications: data.notifications,
+          onDelete: data.deleteNotificationById,
+        );
+      },
     );
   }
 }

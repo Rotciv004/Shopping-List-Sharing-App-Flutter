@@ -53,6 +53,15 @@ class _RootScaffoldState extends State<RootScaffold> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_tabs[_index].title),
+        actions: _index == 2
+            ? [
+                IconButton(
+                  tooltip: 'Clear all',
+                  onPressed: () => InMemoryData.instance.clearAllNotifications(),
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                )
+              ]
+            : null,
       ),
       body: IndexedStack(
         index: _index,
