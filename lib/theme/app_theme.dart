@@ -26,8 +26,6 @@ class AppTheme {
       onSecondary: Colors.white,
       error: _error,
       onError: Colors.white,
-      background: _darkBg,
-      onBackground: Colors.white,
       surface: _darkSurface,
       onSurface: Colors.white,
     );
@@ -108,8 +106,6 @@ class AppTheme {
       onSecondary: Colors.white,
       error: _error,
       onError: Colors.white,
-      background: Colors.white,
-      onBackground: Colors.black,
       surface: Colors.white,
       onSurface: Colors.black,
     );

@@ -89,6 +89,4 @@ Status _statusFrom(String? name) {
 }
 
 String _uuid() =>
-    DateTime.now().microsecondsSinceEpoch.toRadixString(16) +
-    '-' +
-    (DateTime.now().millisecondsSinceEpoch % 1000000).toRadixString(16);
+    '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}-${(DateTime.now().millisecondsSinceEpoch % 1000000).toRadixString(16)}';

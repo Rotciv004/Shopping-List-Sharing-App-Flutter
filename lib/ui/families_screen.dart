@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../data/in_memory_data.dart';
-import 'family/family_details_screen.dart';
 import '../utils/logger.dart';
+import 'widgets/optimized_families_list.dart';
 
 class FamiliesScreen extends StatefulWidget {
   const FamiliesScreen({super.key});
@@ -28,6 +28,7 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
 
   void _onData() {
     Log.i('FamiliesScreen._onData()', tag: 'NAV');
+    // Only rebuild if mounted - targeted update via ListenableBuilder
     if (mounted) setState(() {});
   }
 
@@ -64,29 +65,17 @@ class _FamiliesScreenState extends State<FamiliesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final families = data.families;
-  Log.i('FamiliesScreen.build()', tag: 'NAV');
-  return Scaffold(
-      body: families.isEmpty
-          ? const Center(child: Text('No families yet'))
-          : ListView.separated(
-              itemCount: families.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final f = families[i];
-                return ListTile(
-                  title: Text(f.name),
-                  subtitle: Text('${f.numberOfMembers} members • ${f.numberOfOrders} orders'),
-                  leading: const Icon(Icons.group_outlined),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FamilyDetailsScreen(familyId: f.id),
-                    ),
-                  ),
-                );
-              },
-            ),
+    Log.i('FamiliesScreen.build()', tag: 'NAV');
+    return Scaffold(
+      body: ListenableBuilder(
+        listenable: data,
+        builder: (context, _) {
+          return OptimizedFamiliesList(
+            families: data.families,
+            onAdd: _addFamily,
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addFamily,
         child: const Icon(Icons.add),

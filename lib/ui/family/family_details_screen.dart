@@ -4,6 +4,7 @@ import '../../data/in_memory_data.dart';
 import '../../models/family.dart';
 import '../../models/order.dart';
 import '../../utils/logger.dart';
+import '../widgets/optimized_orders_list.dart';
 
 class FamilyDetailsScreen extends StatefulWidget {
   final String familyId;
@@ -31,6 +32,7 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
 
   void _onData() {
     Log.i('FamilyDetailsScreen._onData()', tag: 'NAV');
+    // Only rebuild if mounted - optimized with ListenableBuilder
     if (mounted) setState(() {});
   }
 
@@ -76,6 +78,30 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Only the creator can delete this order')),
       );
+    }
+  }
+
+  Future<void> _editOrder(Order order) async {
+    Log.i('FamilyDetailsScreen._editOrder(${order.id})', tag: 'NAV');
+    final edited = await showDialog<_OrderFormResult>(
+      context: context,
+      builder: (_) => _OrderDialog(existing: order),
+    );
+    if (edited != null) {
+      final updated = Order(
+        id: order.id,
+        name: edited.name,
+        description: edited.description,
+        quantity: edited.quantity,
+        priority: edited.priority,
+        status: order.status,
+        placingUserId: order.placingUserId,
+        fulfillingUserId: order.fulfillingUserId,
+        allocatedSum: edited.allocatedSum,
+        datePlaced: order.datePlaced,
+        fulfillmentDeadLineDate: edited.deadline ?? order.fulfillmentDeadLineDate,
+      );
+      data.updateOrder(updated);
     }
   }
 
@@ -144,7 +170,6 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
     if (fam == null || fam.id == 'Unknown') {
       return const Scaffold(body: Center(child: Text('Family not found')));
     }
-    final orders = _orders;
   Log.i('FamilyDetailsScreen.build()', tag: 'NAV');
   return Scaffold(
       appBar: AppBar(title: Text(fam.name), actions: [
@@ -158,69 +183,22 @@ class _FamilyDetailsScreenState extends State<FamilyDetailsScreen> {
           ],
         ),
       ]),
-      body: orders.isEmpty
-          ? const Center(child: Text('No orders yet'))
-          : ListView.separated(
-              itemCount: orders.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final o = orders[i];
-                final isCreator = data.currentUser?.id == o.placingUserId;
-                return ListTile(
-                  leading: Icon(_priorityIcon(o.priority)),
-                  title: Text(o.name),
-                  subtitle: Text('Qty: ${o.quantity} • ${o.status.name}'),
-                  onTap: isCreator
-                      ? () async {
-                          final edited = await showDialog<_OrderFormResult>(
-                            context: context,
-                            builder: (_) => _OrderDialog(existing: o),
-                          );
-                          if (edited != null) {
-                            final updated = Order(
-                              id: o.id,
-                              name: edited.name,
-                              description: edited.description,
-                              quantity: edited.quantity,
-                              priority: edited.priority,
-                              status: o.status,
-                              placingUserId: o.placingUserId,
-                              fulfillingUserId: o.fulfillingUserId,
-                              allocatedSum: edited.allocatedSum,
-                              datePlaced: o.datePlaced,
-                              fulfillmentDeadLineDate: edited.deadline ?? o.fulfillmentDeadLineDate,
-                            );
-                            data.updateOrder(updated);
-                          }
-                        }
-                      : null,
-                  trailing: isCreator
-                      ? IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _deleteOrder(o.id),
-                        )
-                      : null,
-                );
-              },
-            ),
+      body: ListenableBuilder(
+        listenable: data,
+        builder: (context, _) {
+          return OptimizedOrdersList(
+            orders: _orders,
+            currentUserId: data.currentUser?.id,
+            onDelete: _deleteOrder,
+            onEdit: _editOrder,
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addOrder,
         child: const Icon(Icons.add),
       ),
     );
-  }
-}
-
-IconData _priorityIcon(Priority p) {
-  switch (p) {
-    case Priority.HIGH:
-      return Icons.priority_high;
-    case Priority.MEDIUM:
-      return Icons.flag_outlined;
-    case Priority.LOW:
-      return Icons.low_priority;
-    case Priority.NEW:
-      return Icons.add_task_outlined;
   }
 }
 
@@ -366,7 +344,7 @@ Future<DateTime?> _pickDateTime({required BuildContext context, required DateTim
               Row(children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: year,
+                    initialValue: year,
                     items: [for (int y = min.year; y <= maxYear; y++) DropdownMenuItem(value: y, child: Text(y.toString()))],
                     onChanged: (v) => setState(() => year = v ?? year),
                     decoration: const InputDecoration(labelText: 'Year'),
@@ -375,7 +353,7 @@ Future<DateTime?> _pickDateTime({required BuildContext context, required DateTim
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: month,
+                    initialValue: month,
                     items: [for (int m = 1; m <= 12; m++) DropdownMenuItem(value: m, child: Text(m.toString().padLeft(2, '0')))],
                     onChanged: (v) => setState(() => month = v ?? month),
                     decoration: const InputDecoration(labelText: 'Month'),
@@ -384,7 +362,7 @@ Future<DateTime?> _pickDateTime({required BuildContext context, required DateTim
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: day,
+                    initialValue: day,
                     items: [for (int d = 1; d <= validDays; d++) DropdownMenuItem(value: d, child: Text(d.toString().padLeft(2, '0')))],
                     onChanged: (v) => setState(() => day = v ?? day),
                     decoration: const InputDecoration(labelText: 'Day'),
@@ -395,7 +373,7 @@ Future<DateTime?> _pickDateTime({required BuildContext context, required DateTim
               Row(children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: hour,
+                    initialValue: hour,
                     items: [for (int h = 0; h < 24; h++) DropdownMenuItem(value: h, child: Text(h.toString().padLeft(2, '0')))],
                     onChanged: (v) => setState(() => hour = v ?? hour),
                     decoration: const InputDecoration(labelText: 'Hour'),
@@ -404,7 +382,7 @@ Future<DateTime?> _pickDateTime({required BuildContext context, required DateTim
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: minute,
+                    initialValue: minute,
                     items: [for (int m = 0; m < 60; m++) DropdownMenuItem(value: m, child: Text(m.toString().padLeft(2, '0')))],
                     onChanged: (v) => setState(() => minute = v ?? minute),
                     decoration: const InputDecoration(labelText: 'Minute'),
